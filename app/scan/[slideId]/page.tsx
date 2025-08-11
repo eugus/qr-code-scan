@@ -48,6 +48,8 @@ export default function ScanPage() {
         setAlreadyScanned(true)
       } else if (data.success) {
         setScanRegistered(true)
+      } else {
+        fallbackToLocalStorage(user)
       }
     } catch (error) {
       console.error("Erro ao registrar scan:", error)
