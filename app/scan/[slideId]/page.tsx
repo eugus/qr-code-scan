@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CheckCircle, QrCode } from "lucide-react"
+import { CheckCircle, QrCode, Loader2 } from "lucide-react"
 
 export default function ScanPage() {
   const params = useParams()
@@ -17,6 +17,7 @@ export default function ScanPage() {
   const [isRegistered, setIsRegistered] = useState(false)
   const [scanRegistered, setScanRegistered] = useState(false)
   const [alreadyScanned, setAlreadyScanned] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     const savedUser = localStorage.getItem("qr-event-user")
@@ -27,21 +28,47 @@ export default function ScanPage() {
     }
   }, [slideId])
 
-  const checkAndRegisterScan = (user: string) => {
+  const checkAndRegisterScan = async (user: string) => {
+    setLoading(true)
+    try {
+      const response = await fetch("/api/scans", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userName: user,
+          slideId: slideId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.alreadyScanned) {
+        setAlreadyScanned(true)
+      } else if (data.success) {
+        setScanRegistered(true)
+      }
+    } catch (error) {
+      console.error("Erro ao registrar scan:", error)
+      fallbackToLocalStorage(user)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fallbackToLocalStorage = (user: string) => {
     const scansKey = `qr-event-scans-${user}`
     const userScans = JSON.parse(localStorage.getItem(scansKey) || "[]")
 
-    // Verifica se já escaneou este slide
     if (userScans.includes(slideId)) {
       setAlreadyScanned(true)
       return
     }
 
-    // Registra o novo scan
     const newScans = [...userScans, slideId]
     localStorage.setItem(scansKey, JSON.stringify(newScans))
 
-    // Atualiza dados globais
     const allScans = JSON.parse(localStorage.getItem("qr-event-all-scans") || "{}")
     if (!allScans[user]) {
       allScans[user] = { scans: [], timestamps: [] }
@@ -63,6 +90,20 @@ export default function ScanPage() {
 
   const handleContinue = () => {
     router.push("/")
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="mx-auto max-w-md space-y-6 pt-16">
+          <div className="text-center">
+            <Loader2 className="mx-auto h-16 w-16 text-blue-600 animate-spin" />
+            <h1 className="mt-4 text-3xl font-bold text-gray-900">Registrando...</h1>
+            <p className="mt-2 text-gray-600">Aguarde um momento</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (alreadyScanned) {
