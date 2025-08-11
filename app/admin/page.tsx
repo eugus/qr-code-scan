@@ -23,16 +23,26 @@ export default function AdminPage() {
   }, [])
 
   const loadData = () => {
-    const data = localStorage.getItem("qr-scan-data")
+    const data = localStorage.getItem("qr-event-all-scans")
     if (data) {
-      const parsedData: ScanData[] = JSON.parse(data)
-      setScanData(parsedData)
+      const parsedData = JSON.parse(data)
 
-      const total = parsedData.reduce((sum, user) => sum + user.scans.length, 0)
+      const formattedData: ScanData[] = Object.entries(parsedData).map(([user, userData]: [string, any]) => ({
+        user,
+        scans: userData.scans || [],
+        timestamp:
+          userData.timestamps && userData.timestamps.length > 0
+            ? new Date(userData.timestamps[0]).getTime()
+            : Date.now(),
+      }))
+
+      setScanData(formattedData)
+
+      const total = formattedData.reduce((sum, user) => sum + user.scans.length, 0)
       setTotalScans(total)
 
       const allQRs = new Set()
-      parsedData.forEach((user) => {
+      formattedData.forEach((user) => {
         user.scans.forEach((qr) => allQRs.add(qr))
       })
       setUniqueQRs(allQRs.size)
@@ -41,28 +51,26 @@ export default function AdminPage() {
 
   const clearAllData = () => {
     if (confirm("Tem certeza que deseja limpar todos os dados? Esta ação não pode ser desfeita.")) {
-      localStorage.removeItem("qr-scan-data")
+      localStorage.removeItem("qr-event-all-scans")
+      localStorage.removeItem("qr-event-user")
+
+      scanData.forEach((user) => {
+        localStorage.removeItem(`qr-event-scans-${user.user}`)
+      })
+
       setScanData([])
       setTotalScans(0)
       setUniqueQRs(0)
     }
   }
 
-  const exportData = () => {
-    const dataStr = JSON.stringify(scanData, null, 2)
-    const dataBlob = new Blob([dataStr], { type: "application/json" })
-    const url = URL.createObjectURL(dataBlob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `qr-event-data-${new Date().toISOString().split("T")[0]}.json`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
   const removeUser = (userName: string) => {
     if (confirm(`Tem certeza que deseja remover ${userName}?`)) {
-      const newData = scanData.filter((user) => user.user !== userName)
-      localStorage.setItem("qr-scan-data", JSON.stringify(newData))
+      const allScans = JSON.parse(localStorage.getItem("qr-event-all-scans") || "{}")
+      delete allScans[userName]
+      localStorage.setItem("qr-event-all-scans", JSON.stringify(allScans))
+      localStorage.removeItem(`qr-event-scans-${userName}`)
+
       loadData()
     }
   }
@@ -115,7 +123,7 @@ export default function AdminPage() {
           <Button variant="outline" onClick={loadData} className="flex-1 bg-transparent">
             Atualizar
           </Button>
-          <Button variant="outline" onClick={exportData} className="flex-1 bg-transparent">
+          <Button variant="outline" onClick={() => window.open("/export", "_blank")} className="flex-1 bg-transparent">
             <Download className="h-4 w-4 mr-2" />
             Exportar
           </Button>
